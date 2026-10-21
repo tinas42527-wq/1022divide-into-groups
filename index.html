@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>學生自動分組與成績統計</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --card-hover: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --accent: #3b82f6;
+  --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  --accent-t: #ffffff;
+  --chip: #f1f5f9;
+  --chip-hover: #e2e8f0;
+  --ring: rgba(59, 130, 246, 0.15);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --card-hover: #243347;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --line: #334155;
+    --accent: #38bdf8;
+    --accent-gradient: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    --accent-t: #ffffff;
+    --chip: #0f172a;
+    --chip-hover: #1e293b;
+    --ring: rgba(56, 189, 248, 0.2);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+    --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f172a;
+  --card: #1e293b;
+  --card-hover: #243347;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --line: #334155;
+  --accent: #38bdf8;
+  --accent-gradient: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  --accent-t: #ffffff;
+  --chip: #0f172a;
+  --chip-hover: #1e293b;
+  --ring: rgba(56, 189, 248, 0.2);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+  --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.5);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: "Plus Jakarta Sans", "Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+.sub {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.panel:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--ring), var(--shadow-md);
+}
+
+textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font: inherit;
+  font-size: 0.95rem;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+textarea:focus {
+  border-color: var(--accent);
+  background: var(--card);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+button {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  user-select: none;
+}
+
+button:hover {
+  background: var(--chip-hover);
+  border-color: var(--muted);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+button.primary {
+  background: var(--accent-gradient);
+  color: var(--accent-t);
+  border: none;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+button.primary:hover {
+  opacity: 0.95;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+}
+
+button.success {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+button.success:hover {
+  background: #059669;
+}
+
+.info {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-left: auto;
+  background: var(--chip);
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.warn {
+  color: #ef4444;
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-top: 10px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: -10px 0 20px 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.group {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.group:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.group h3 {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--accent-gradient);
+  color: var(--accent-t);
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.group h3 span.badge {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(4px);
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.group ul {
+  list-style: none;
+  margin: 0;
+  padding: 12px;
+  flex: 1;
+}
+
+.group li {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  transition: all 0.15s ease;
+}
+
+.group li:last-child {
+  margin-bottom: 0;
+}
+
+.group li:hover {
+  background: var(--card-hover);
+  border-color: var(--accent);
+  transform: translateX(2px);
+}
+
+.group li .nm {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.group li .tag {
+  color: var(--muted);
+  font-size: 0.8rem;
+  background: var(--card);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.group li .del {
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: #ef4444;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  margin-left: auto;
+  font-size: 0.9rem;
+  opacity: 0.6;
+}
+
+.group li .del:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  opacity: 1;
+}
+
+.group.over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--chip);
+}
+
+.pt {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--card);
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.pt button {
+  padding: 0 6px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  box-shadow: none;
+  border: none;
+  background: var(--chip);
+}
+
+.pt button:hover {
+  background: var(--accent);
+  color: var(--accent-t);
+}
+
+.pt b {
+  min-width: 1.8em;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.tot {
+  font-size: 0.82rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tot b {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.tot small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.score input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.score input:focus {
+  border-color: var(--accent);
+}
+</style>
+</head>
+<body>
+<main>
+<div class="header">
+  <h1>學生自動分組與成績統計</h1>
+  <p class="sub">輸入或貼上學生名單，輕鬆完成自動隨機分組、計算組別與個人總成績，並可直接導出為高畫質圖檔。</p>
+</div>
+
+<div class="panel">
+<textarea id="input" placeholder="每行一位學生，例如：&#10;211 01 吳凱瑞&#10;或直接貼上姓名名單"></textarea>
+<div class="bar">
+<button class="primary" id="go">⚡ 開始自動分組</button>
+<button id="shuffle">🎲 重新隨機分組</button>
+<button id="copy">📋 複製結果文字</button>
+<button id="exportImg" class="success">🖼️ 輸出成績圖檔</button>
+<span class="info" id="info"></span>
+</div>
+<div class="warn" id="warn"></div>
+</div>
+
+<p class="hint">💡 提示：可拖曳成員進行換組；每組可設置「組別成績」，每位成員旁可進行「個人加減分」，系統將自動累加出「個人總成績」。</p>
+<div class="grid" id="out"></div>
+</main>
+
+<script>
+const DEFAULT = `211 01 吳凱瑞
+211 02 李忻翰
+211 18 秦永怡
+211 20 張苡宣
+211 23 陳佳妤
+211 25 陳譽臻
+211 26 程筠筑
+211 28 楊子萱
+211 32 盧寀璇
+211 33 簡睦澄
+218 01 石東諭
+218 06 徐浩椉
+218 11 楊喆宇
+218 14 巫若涵
+218 21 徐詩恩
+218 26 黃芯秜
+218 27 黃薏芯
+218 28 雷蕾
+218 30 廖妍芯
+218 31 劉又瑄
+218 35 蕭明涓`;
+
+const $=id=>document.getElementById(id);
+let groups=[];
+
+function parse(text){
+  const list=[];
+  text.split(/\r?\n/).forEach(line=>{
+    const t=line.trim().split(/[\s,，、|;；\t]+/).filter(Boolean);
+    const nums=t.filter(x=>/^\d+$/.test(x));
+    const names=t.filter(x=>!/^\d+$/.test(x));
+    if(names.length===1) list.push({name:names[0],tag:nums.join('-')});
+    else names.forEach(n=>list.push({name:n,tag:''}));
+  });
+  return list;
+}
+
+function shuffleArr(a){
+  a=a.slice();
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function split(list){
+  const n=list.length;
+  if(!n) return [];
+  const g=Math.max(1,Math.ceil(n/5));
+  const base=Math.floor(n/g), extra=n%g;
+  const res=[];let k=0;
+  for(let i=0;i<g;i++){
+    const size=base+(i<extra?1:0);
+    res.push(list.slice(k,k+size));k+=size;
+  }
+  return res;
+}
+
+function move(from,idx,to){
+  const [s]=groups[from].splice(idx,1);
+  if(to==='new')groups.push([s]);else groups[to].push(s);
+  groups=groups.filter(g=>g.length);
+  render();
+}
+
+function render(){
+  groups=groups.filter(g=>g.length);
+  const out=$('out');out.innerHTML='';
+  groups.forEach((g,i)=>{
+    const d=document.createElement('div');d.className='group';
+    const h=document.createElement('h3');
+    h.innerHTML='<span>第 '+(i+1)+' 組</span><span class="badge">'+g.length+' 人</span>';
+    const ul=document.createElement('ul');
+    const gScore = parseFloat(g.score) || 0;
+
+    g.forEach((s,j)=>{
+      const li=document.createElement('li');li.draggable=true;
+      li.ondragstart=e=>e.dataTransfer.setData('text/plain',i+','+j);
+      
+      const a=document.createElement('span');a.className='nm';a.textContent=s.name;
+      const b=document.createElement('small');b.className='tag';b.textContent=s.tag;
+      
+      const pts = s.pts || 0;
+      const total = gScore + pts;
+
+      const pm=document.createElement('span');pm.className='pt';
+      const mk=(t,dv)=>{const bt=document.createElement('button');bt.textContent=t;bt.onclick=()=>{s.pts=(s.pts||0)+dv;render();};return bt;};
+      const val=document.createElement('b');val.textContent=pts>0?'+'+pts:String(pts);
+      pm.append(mk('−',-1),val,mk('+',1));
+
+      const tot=document.createElement('span');tot.className='tot';
+      tot.innerHTML=`總分 <b>${total}</b> <small>(${gScore}${pts>=0?'+':''}${pts})</small>`;
+
+      const x=document.createElement('button');x.className='del';x.textContent='✕';x.title='刪除成員';
+      x.onclick=()=>{groups[i].splice(j,1);render();};
+
+      li.append(a,b,pm,tot,x);ul.append(li);
+    });
+
+    d.ondragover=e=>{e.preventDefault();d.classList.add('over')};
+    d.ondragleave=()=>d.classList.remove('over');
+    d.ondrop=e=>{e.preventDefault();d.classList.remove('over');
+      const p=(e.dataTransfer.getData('text/plain')||'').split(',').map(Number);
+      if(p.length===2&&!isNaN(p[0])&&p[0]!==i)move(p[0],p[1],i);};
+    
+    const sc=document.createElement('div');sc.className='score';
+    const lb=document.createElement('span');lb.textContent='🏆 組別成績';
+    const inp=document.createElement('input');inp.type='number';inp.step='any';inp.inputMode='decimal';inp.placeholder='輸入組分數';
+    inp.value=g.score??'';
+    inp.oninput=()=>{
+      g.score=inp.value;
+      const curGScore = parseFloat(g.score) || 0;
+      ul.querySelectorAll('li').forEach((li, idx)=>{
+        const s = g[idx];
+        const pts = s.pts || 0;
+        const totEl = li.querySelector('.tot');
+        if(totEl){
+          totEl.innerHTML = `總分 <b>${curGScore + pts}</b> <small>(${curGScore}${pts>=0?'+':''}${pts})</small>`;
+        }
+      });
+    };
+    sc.append(lb,inp);
+    d.append(h,ul,sc);out.append(d);
+  });
+  const total=groups.reduce((n,g)=>n+g.length,0);
+  $('info').textContent=total?('共 '+total+' 人，'+groups.length+' 組'):'';
+}
+
+function exportImage(){
+  if(!groups.length){
+    alert('目前沒有組別資料可匯出！');
+    return;
+  }
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const width = 900;
+  const padding = 36;
+  const headerHeight = 90;
+
+  let contentHeight = headerHeight;
+  groups.forEach(g => {
+    contentHeight += 42 + 32 + g.length * 36 + 24;
+  });
+  contentHeight += padding;
+
+  canvas.width = width * 2; // High DPI 畫質優化
+  canvas.height = contentHeight * 2;
+  ctx.scale(2, 2);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, contentHeight);
+
+  // Title
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 24px "Noto Sans TC", sans-serif';
+  ctx.fillText('學生組別與成績統計總表', padding, 48);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '13px "Noto Sans TC", sans-serif';
+  const now = new Date();
+  const dateStr = now.getFullYear() + '/' + (now.getMonth()+1) + '/' + now.getDate() + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  ctx.fillText(`產生時間：${dateStr}  |  總計：${groups.reduce((n,g)=>n+g.length,0)} 人，共 ${groups.length} 組`, padding, 72);
+
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padding, 82);
+  ctx.lineTo(width - padding, 82);
+  ctx.stroke();
+
+  let y = headerHeight + 15;
+
+  groups.forEach((g, idx) => {
+    const gScore = parseFloat(g.score) || 0;
+    const cardWidth = width - padding * 2;
+    const cardHeaderHeight = 38;
+    const tableHeaderHeight = 30;
+    const rowHeight = 36;
+    const cardHeight = cardHeaderHeight + tableHeaderHeight + g.length * rowHeight + 8;
+
+    // Card boundary
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(padding, y, cardWidth, cardHeight);
+
+    // Header background
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(padding, y, cardWidth, cardHeaderHeight);
+
+    // Group Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 15px "Noto Sans TC", sans-serif';
+    ctx.fillText(`第 ${idx + 1} 組 (${g.length} 人)`, padding + 16, y + 24);
+
+    ctx.font = '14px "Noto Sans TC", sans-serif';
+    const scoreTxt = `組別成績：${g.score !== undefined && g.score !== '' ? g.score + ' 分' : '未輸入'}`;
+    ctx.fillText(scoreTxt, padding + cardWidth - ctx.measureText(scoreTxt).width - 16, y + 24);
+
+    let curY = y + cardHeaderHeight;
+
+    // Table Header
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(padding, curY, cardWidth, tableHeaderHeight);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
+    
+    const colName = padding + 16;
+    const colTag = padding + 180;
+    const colGScore = padding + 350;
+    const colPts = padding + 490;
+    const colTotal = padding + 640;
+
+    ctx.fillText('姓名', colName, curY + 20);
+    ctx.fillText('標籤/座號', colTag, curY + 20);
+    ctx.fillText('組別成績', colGScore, curY + 20);
+    ctx.fillText('個人加分', colPts, curY + 20);
+    ctx.fillText('個人總成績', colTotal, curY + 20);
+
+    curY += tableHeaderHeight;
+
+    // Rows
+    g.forEach((s, sIdx) => {
+      if (sIdx % 2 === 1) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(padding + 1, curY, cardWidth - 2, rowHeight);
+      }
+
+      ctx.strokeStyle = '#f1f5f9';
+      ctx.beginPath();
+      ctx.moveTo(padding, curY);
+      ctx.lineTo(padding + cardWidth, curY);
+      ctx.stroke();
+
+      const pts = s.pts || 0;
+      const totalScore = gScore + pts;
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '14px "Noto Sans TC", sans-serif';
+      ctx.fillText(s.name, colName, curY + 23);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px "Noto Sans TC", sans-serif';
+      ctx.fillText(s.tag || '-', colTag, curY + 23);
+
+      ctx.fillStyle = '#334155';
+      ctx.fillText(`${gScore} 分`, colGScore, curY + 23);
+
+      const ptsStr = pts > 0 ? `+${pts}` : `${pts}`;
+      ctx.fillStyle = pts > 0 ? '#16a34a' : (pts < 0 ? '#dc2626' : '#64748b');
+      ctx.fillText(ptsStr, colPts, curY + 23);
+
+      ctx.fillStyle = '#2563eb';
+      ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
+      ctx.fillText(`${totalScore} 分 (${gScore}${pts>=0?'+':''}${pts})`, colTotal, curY + 23);
+
+      curY += rowHeight;
+    });
+
+    y += cardHeight + 24;
+  });
+
+  const link = document.createElement('a');
+  link.download = `學生成績總表_${new Date().toISOString().slice(0, 10)}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function run(){
+  const list=parse($('input').value);
+  const n=list.length;
+  groups=split(shuffleArr(list));
+  render();
+  $('info').textContent=n?('共 '+n+' 人，分成 '+groups.length+' 組'):'';
+  $('warn').textContent=(n&&n<8)?'⚠️ 人數少於 8 人，無法每組都達到 4 人。':'';
+}
+
+$('go').onclick=run;
+$('shuffle').onclick=run;
+$('exportImg').onclick=exportImage;
+$('copy').onclick=()=>{
+  const txt=groups.map((g,i)=>'第 '+(i+1)+' 組：'+g.map(s=>{
+    const gScore = parseFloat(g.score) || 0;
+    const pts = s.pts || 0;
+    return `${s.name}(組分:${gScore}, 個人:${pts>=0?'+':''}${pts}, 總分:${gScore+pts})`;
+  }).join('、')+(g.score?'（組別成績：'+g.score+'）':'')).join('\n');
+  const done=()=>{$('copy').textContent='已複製 ✓';setTimeout(()=>$('copy').textContent='📋 複製結果文字',1500)};
+  if(navigator.clipboard)navigator.clipboard.writeText(txt).then(done,()=>{});
+  else{const t=document.createElement('textarea');t.value=txt;document.body.append(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove();}
+};
+
+$('input').value=DEFAULT;
+run();
+</script>
+</body>
+</html>
