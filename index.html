@@ -420,6 +420,64 @@ button.success:hover {
 .score input:focus {
   border-color: var(--accent);
 }
+
+.opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--card);
+}
+.seg label {
+  padding: 7px 14px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.seg input { display: none; }
+.seg label:has(input:checked) {
+  background: var(--accent-gradient);
+  color: var(--accent-t);
+}
+.numctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.numctl button {
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  font-size: 1.1rem;
+}
+.numctl input {
+  width: 64px;
+  text-align: center;
+  font: inherit;
+  font-weight: 700;
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+.numctl input:focus { border-color: var(--accent); }
+.opts .preview { color: var(--muted); font-weight: 500; margin-left: auto; }
 </style>
 </head>
 <body>
@@ -431,6 +489,20 @@ button.success:hover {
 
 <div class="panel">
 <textarea id="input" placeholder="每行一位學生，例如：&#10;211 01 吳凱瑞&#10;或直接貼上姓名名單"></textarea>
+<div class="opts">
+  <span>分組方式</span>
+  <span class="seg">
+    <label><input type="radio" name="mode" value="size" checked>每組人數</label>
+    <label><input type="radio" name="mode" value="count">總組數</label>
+  </span>
+  <span class="numctl">
+    <button type="button" id="numMinus" aria-label="減少">−</button>
+    <input type="number" id="num" min="1" step="1" value="5" inputmode="numeric">
+    <button type="button" id="numPlus" aria-label="增加">+</button>
+    <span id="unit">人／組</span>
+  </span>
+  <span class="preview" id="preview"></span>
+</div>
 <div class="bar">
 <button class="primary" id="go">⚡ 開始自動分組</button>
 <button id="shuffle">🎲 重新隨機分組</button>
@@ -489,10 +561,22 @@ function shuffleArr(a){
   return a;
 }
 
+function getOpts(){
+  const mode=document.querySelector('input[name="mode"]:checked').value;
+  const v=Math.max(1,Math.floor(parseFloat($('num').value))||1);
+  return {mode,v};
+}
+
+function groupCount(n){
+  const {mode,v}=getOpts();
+  if(mode==='count') return Math.min(v,n);
+  return Math.max(1,Math.ceil(n/v));
+}
+
 function split(list){
   const n=list.length;
   if(!n) return [];
-  const g=Math.max(1,Math.ceil(n/5));
+  const g=groupCount(n);
   const base=Math.floor(n/g), extra=n%g;
   const res=[];let k=0;
   for(let i=0;i<g;i++){
@@ -500,6 +584,16 @@ function split(list){
     res.push(list.slice(k,k+size));k+=size;
   }
   return res;
+}
+
+function updatePreview(){
+  const {mode}=getOpts();
+  $('unit').textContent=mode==='size'?'人／組':'組';
+  const n=parse($('input').value).length;
+  if(!n){$('preview').textContent='';return;}
+  const g=groupCount(n);
+  const lo=Math.floor(n/g), hi=Math.ceil(n/g);
+  $('preview').textContent='預計 '+g+' 組，每組 '+(lo===hi?lo:lo+'～'+hi)+' 人';
 }
 
 function move(from,idx,to){
@@ -718,10 +812,24 @@ function run(){
   groups=split(shuffleArr(list));
   render();
   $('info').textContent=n?('共 '+n+' 人，分成 '+groups.length+' 組'):'';
-  $('warn').textContent=(n&&n<8)?'⚠️ 人數少於 8 人，無法每組都達到 4 人。':'';
+  const {mode,v}=getOpts();
+  let w='';
+  if(n&&mode==='count'&&v>n) w='⚠️ 組數多於總人數，已自動調整為 '+n+' 組（每組 1 人）。';
+  else if(n&&mode==='size'&&v>n) w='⚠️ 每組人數大於總人數，所有人將分在同一組。';
+  $('warn').textContent=w;
+  updatePreview();
 }
 
 $('go').onclick=run;
+document.querySelectorAll('input[name="mode"]').forEach(r=>r.onchange=()=>{
+  $('num').value=r.value==='size'?5:4; // 切換模式時給預設值
+  updatePreview();
+});
+$('num').oninput=updatePreview;
+$('input').addEventListener('input',updatePreview);
+$('numMinus').onclick=()=>{$('num').value=Math.max(1,(parseInt($('num').value)||1)-1);updatePreview();};
+$('numPlus').onclick=()=>{$('num').value=(parseInt($('num').value)||0)+1;updatePreview();};
+$('num').addEventListener('keydown',e=>{if(e.key==='Enter')run();});
 $('shuffle').onclick=run;
 $('exportImg').onclick=exportImage;
 $('copy').onclick=()=>{
