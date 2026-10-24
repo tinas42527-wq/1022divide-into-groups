@@ -436,6 +436,17 @@ button.outline:hover { background: var(--accent); color: var(--accent-t); }
   main { padding: 0 14px 56px; }
   .panel { padding: 16px; }
 }
+
+/* ===== 氣球遊戲成績連線 ===== */
+.link { margin-bottom: 28px; }
+.link-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.link-row label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+.link-row input[type=text] { font: inherit; width: 150px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--chip); color: var(--text); outline: none; }
+.link-row input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); background: var(--card); }
+.link-preview { margin-top: 14px; padding: 10px 14px; background: var(--chip); border: 1px dashed var(--line); border-radius: 10px; font-size: 0.92rem; min-height: 44px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.link-preview .meta { width: 100%; color: var(--muted); font-size: 0.82rem; }
+.link-preview .lk { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-weight: 600; }
+.link-preview .lk b { color: var(--accent); font-size: 1.05rem; }
 </style>
 </head>
 <body>
@@ -480,6 +491,20 @@ button.outline:hover { background: var(--accent); color: var(--accent-t); }
   </div>
 </section>
 
+<section class="panel link" id="balloonLink">
+  <div class="panel-h"><h2>🎈 氣球遊戲成績連線</h2><span class="note" id="linkStatus">連線中…</span></div>
+  <p class="note" style="margin:0">氣球遊戲每組打完會自動送出累計成績；第 N 隊會對應到下方「第 N 組」的組別成績。</p>
+  <div class="link-row">
+    <label>房間代碼 <input type="text" id="roomCode" placeholder="default"></label>
+    <label><input type="checkbox" id="autoApply" checked> 收到成績自動填入組別成績</label>
+    <label><input type="checkbox" id="pubRoster" checked> 同步分組名單給氣球遊戲（只送姓名）</label>
+  </div>
+  <div class="link-preview" id="linkPreview"></div>
+  <p class="note" id="rosterNote" style="margin:10px 0 0"></p>
+  <div class="actions"><button class="primary" id="applyScores">套用氣球成績到組別成績</button></div>
+  <div class="warn" id="linkWarn"></div>
+</section>
+
 <section class="results">
   <div class="res-h">
     <div class="res-title"><h2>分組結果</h2><span class="info" id="info"></span></div>
@@ -495,6 +520,17 @@ button.outline:hover { background: var(--accent); color: var(--accent-t); }
 </section>
 </main>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  const app = initializeApp({ databaseURL: "https://word-420e5-default-rtdb.asia-southeast1.firebasedatabase.app/" });
+  window._fbDb = getDatabase(app);
+  window._fbRef = ref;
+  window._fbOnValue = onValue;
+  window._fbSet = set;
+  window._fbReady = true;
+  document.dispatchEvent(new Event('firebaseReady'));
+</script>
 <script>
 const DEFAULT = `211 01 吳凱瑞
 211 02 李忻翰
@@ -645,6 +681,7 @@ function render(){
   });
   const total=groups.reduce((n,g)=>n+g.length,0);
   $('info').textContent=total?('共 '+total+' 人，'+groups.length+' 組'):'';
+  scheduleRoster();
 }
 
 function needGroups(){
@@ -952,6 +989,7 @@ function run(){
   else if(n&&mode==='size'&&v>n) w='⚠️ 每組人數大於總人數，所有人將分在同一組。';
   $('warn').textContent=w;
   updatePreview();
+  reapplyBalloon();
 }
 
 $('go').onclick=run;
@@ -978,6 +1016,85 @@ $('copy').onclick=()=>{
   if(navigator.clipboard)navigator.clipboard.writeText(txt).then(done,()=>{});
   else{const t=document.createElement('textarea');t.value=txt;document.body.append(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove();}
 };
+
+/* ===== 氣球遊戲成績連線（Firebase：teamScores/<房間代碼>）===== */
+let balloonData = null, balloonUnsub = null, lastApplied = 0;
+let rosterSig = '', rosterTimer = null;
+const ROOM_KEY = 'sf_team_room';
+function roomKey(){ return (($('roomCode').value || 'default').trim().replace(/[.#$\[\]\/]/g,'_')) || 'default'; }
+function escH(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function balloonTeams(){ return balloonData && Array.isArray(balloonData.teams) ? balloonData.teams.filter(Boolean) : []; }
+
+function renderLink(){
+  const box = $('linkPreview'), teams = balloonTeams();
+  if(!teams.length){ box.innerHTML = '<span class="note">尚未收到氣球遊戲成績（房間：'+escH(roomKey())+'）</span>'; $('linkWarn').textContent=''; return; }
+  const when = balloonData.updatedAt ? new Date(balloonData.updatedAt).toLocaleTimeString('zh-TW',{hour12:false}) : '';
+  box.innerHTML = '<div class="meta">'+(balloonData.finished?'✅ 對抗賽已結束':'⏳ 對抗賽進行中')+(when?' ・ 更新於 '+when:'')+'</div>' +
+    teams.map(t=>'<span class="lk">氣球「'+escH(t.name||('第'+(t.index+1)+'隊'))+'」→ 第 '+(t.index+1)+' 組：<b>'+(t.total||0)+'</b> 分</span>').join('');
+  $('linkWarn').textContent = (groups.length && teams.length!==groups.length)
+    ? '⚠️ 氣球遊戲有 '+teams.length+' 隊，目前分組結果有 '+groups.length+' 組；只會套用到編號相同的組別。' : '';
+}
+function applyBalloon(){
+  const teams = balloonTeams();
+  if(!teams.length || !groups.length) return 0;
+  let n = 0;
+  teams.forEach(t=>{ const gp = groups[t.index]; if(gp){ gp.score = String(t.total||0); n++; } });
+  lastApplied = balloonData.updatedAt || 0;
+  render();
+  return n;
+}
+function reapplyBalloon(){ if($('autoApply') && $('autoApply').checked && balloonTeams().length) applyBalloon(); }
+function onBalloonData(data){
+  balloonData = data;
+  renderLink();
+  if(balloonTeams().length && $('autoApply').checked && (balloonData.updatedAt||0) !== lastApplied) applyBalloon();
+}
+function startLink(){
+  if(balloonUnsub){ try{balloonUnsub();}catch(e){} balloonUnsub=null; }
+  balloonData = null; lastApplied = 0; renderLink();
+  if(!window._fbReady){ $('linkStatus').textContent='⚠️ 雲端未連線（改用同網域本機資料）'; return; }
+  $('linkStatus').textContent='☁️ 已連線，等待氣球遊戲成績';
+  balloonUnsub = window._fbOnValue(window._fbRef(window._fbDb,'teamScores/'+roomKey()),
+    snap=>{ onBalloonData(snap.exists()?snap.val():null); $('linkStatus').textContent = balloonTeams().length ? '☁️ 已收到成績' : '☁️ 已連線，等待氣球遊戲成績'; },
+    ()=>{ $('linkStatus').textContent='⚠️ 讀取失敗（請檢查資料庫權限）'; });
+  rosterSig = ''; scheduleRoster(true);
+}
+$('roomCode').value = localStorage.getItem(ROOM_KEY) || '';
+$('roomCode').onchange = ()=>{ try{localStorage.setItem(ROOM_KEY,$('roomCode').value.trim());}catch(e){} startLink(); };
+$('applyScores').onclick = ()=>{
+  if(!groups.length){ alert('請先完成分組。'); return; }
+  if(!balloonTeams().length){ alert('目前還沒有收到氣球遊戲成績。'); return; }
+  const n = applyBalloon();
+  $('applyScores').textContent = '已套用 '+n+' 組 ✓';
+  setTimeout(()=>$('applyScores').textContent='套用氣球成績到組別成績',1500);
+};
+window.addEventListener('storage', e=>{ // 同網域備援：氣球與分組在同一網域時可即時接收
+  if(e.key === 'sf_team_scores_'+roomKey() && e.newValue && !window._fbReady){ try{ onBalloonData(JSON.parse(e.newValue)); }catch(_){} }
+});
+if(window._fbReady) startLink();
+else {
+  document.addEventListener('firebaseReady', startLink);
+  setTimeout(()=>{ if(!window._fbReady){ $('linkStatus').textContent='⚠️ 雲端未連線'; } }, 6000);
+}
+
+/* ===== 同步分組名單給氣球遊戲（Firebase：teamRoster/<房間代碼>；只送姓名）===== */
+
+function scheduleRoster(force){ clearTimeout(rosterTimer); rosterTimer = setTimeout(()=>publishRoster(force), 500); }
+async function publishRoster(force){
+  const cb = $('pubRoster'), note = $('rosterNote');
+  if(!cb || !cb.checked || !window._fbReady || !window._fbSet || !groups.length) return;
+  const sig = JSON.stringify(groups.map(gp=>gp.map(s=>s.name)));
+  if(!force && sig === rosterSig) return;
+  try{
+    await window._fbSet(window._fbRef(window._fbDb,'teamRoster/'+roomKey()), {
+      updatedAt: Date.now(),
+      groups: groups.map((gp,i)=>({ index:i, name:'第'+(i+1)+'組', members: gp.map(s=>s.name) }))
+    });
+    rosterSig = sig;
+    if(note) note.textContent = '📤 已把 '+groups.length+' 組名單送給氣球遊戲（房間：'+roomKey()+'），在氣球檔按「匯入組數與組員」即可。';
+  }catch(e){ if(note) note.textContent = '⚠️ 名單同步失敗（請檢查資料庫權限）'; }
+}
+$('pubRoster').onchange = ()=>{ rosterSig=''; if($('pubRoster').checked) scheduleRoster(true); else $('rosterNote').textContent='已停止同步名單。'; };
 
 $('input').value=DEFAULT;
 run();
